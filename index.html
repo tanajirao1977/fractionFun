@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fraction Fun</title>
+    <style>
+      :root{--accent:#3f7bdc;--muted:#666}
+      body{font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:20px;color:#111}
+      .app{max-width:980px;margin:0 auto;border:2px solid #cfe; padding:20px}
+      .controls{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+      .box{padding:16px;border:2px solid #9fd1a6;border-radius:4px;min-width:160px}
+      .box.blue{background:var(--accent);color:#fff;border-color:#375ea6}
+      label{display:block;font-weight:600;margin-bottom:6px}
+      select,input[type=number]{font-size:1.1rem;padding:8px;border:1px solid #ccc;border-radius:4px}
+      .fraction-text{font-size:1.2rem}
+      h1{text-align:center}
+
+      /* Desktop table (headers horizontal, values row below) */
+      .conv-table{width:100%;border-collapse:collapse;margin-top:28px}
+      .conv-table th,.conv-table td{border:2px solid #111;padding:12px;text-align:center}
+      .conv-table th{font-size:1.1rem;background:#fff}
+      .conv-table td{font-size:0.95rem}
+
+      /* Mobile stacked view (headings in first column, values in second) */
+      .stacked{display:none;margin-top:18px}
+      .pair{display:flex;justify-content:space-between;padding:10px;border:1px solid #ccc}
+      .pair .k{font-weight:700}
+
+      /* Responsive behavior */
+      @media (max-width:640px){
+        .controls{flex-direction:column;align-items:stretch}
+        .conv-table{display:none}
+        .stacked{display:block}
+      }
+
+      /* watermark styling */
+      .watermark{
+        position:fixed;
+        right:12px;
+        bottom:12px;
+        font-size:14px;
+        font-weight:700;
+        color:#000;
+        opacity:0.12;
+        pointer-events:none;
+        user-select:none;
+        z-index:9999;
+        letter-spacing:0.6px;
+      }
+      @media (max-width:768px){
+        .watermark{font-size:12px;right:8px;bottom:8px;opacity:0.14}
+      }
+
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <h1>अपूर्णांक</h1>
+
+      <div class="controls">
+        <div class="box">
+          <label for="decimal">अपूर्णांक निवडा </label>
+          <select id="decimal" aria-label="decimal selector"></select>
+        </div>
+
+        <div class="box blue">
+          <label>अपूर्णांक अक्षरी</label>
+          <div id="marathiText" class="fraction-text">&nbsp;</div>
+        </div>
+
+        <div class="box blue">
+          <label>Fraction in word</label>
+          <div id="fractionWord" class="fraction-text">&nbsp;</div>
+        </div>
+      </div>
+
+      <!-- Desktop table -->
+      <table class="conv-table" id="convTable" aria-label="Conversions table">
+        <thead>
+          <tr>
+            <th>लीटर</th>
+            <th>मीटर</th>
+            <th>किलोग्रॅम</th>
+            <th>डझन</th>
+            <th>तास </th>
+            <th>टक्के</th>
+            <th>हजार</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr id="valuesRow">
+            <td id="litVal">&nbsp;</td>
+            <td id="metVal">&nbsp;</td>
+            <td id="kgVal">&nbsp;</td>
+            <td id="dozVal">&nbsp;</td>
+            <td id="hrVal">&nbsp;</td>
+            <td id="pctVal">&nbsp;</td>
+            <td id="thouVal">&nbsp;</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Mobile stacked view -->
+      <div class="stacked" id="stackedView" aria-hidden="true">
+        <div class="pair"><div class="k">LITER</div><div class="v" id="litVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">METER</div><div class="v" id="metVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">KILOGRAM</div><div class="v" id="kgVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">DOZAN</div><div class="v" id="dozVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">HOUR</div><div class="v" id="hrVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">PERCENTAGE</div><div class="v" id="pctVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">THOUSAND</div><div class="v" id="thouVal_m">&nbsp;</div></div>
+      </div>
+
+    </div>
+
+    <script>
+      // Populate select with values 0.00..5.00 step 0.25
+      const sel = document.getElementById('decimal');
+      for(let v=0; v<=5.0001; v+=0.25){
+        const val = (Math.round(v*100)/100).toFixed(2);
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = val;
+        sel.appendChild(opt);
+      }
+      sel.value = '0.25';
+
+      // Marathi Devnagari mapping for fractions
+      const marathiMap = {
+        '0.25': 'पाव',
+        '0.50': 'अर्धा',
+        '0.75': 'पाउण',
+        '1.00': 'एक',
+        '1.25': 'सव्वा',
+        '1.50': 'डोळ',
+        '1.75': 'पाउणो दोन',
+        '2.00': 'दोन',
+        '2.25': 'सव्वा दोन',
+        '2.50': 'अडीच',
+        '2.75': 'पाउणो तीन',
+        '3.00': 'तीन',
+        '3.25': 'सव्वा तीन',
+        '3.50': 'साडे तीन',
+        '3.75': 'पाउणो चार',
+        '4.00': 'चार',
+        '4.25': 'सव्वा चार',
+        '4.50': 'साडे चार',
+        '4.75': 'पाउणो पाच',
+        '5.00': 'पाच'
+      };
+
+      // Fraction word mapping for quarters
+      function fracWord(num){
+        const n = Number(num);
+        const integer = Math.floor(n);
+        const frac = Math.round((n - integer) * 4) / 4; // quarters
+        const fracMap = {0:'', 0.25:'quarter',0.5:'half',0.75:'three quarters'};
+        if(n===0) return 'zero';
+        if(integer===0){
+          return fracMap[frac] || n;
+        }
+        if(frac===0) return integer === 1 ? 'one' : String(integer);
+        // e.g. 1.25 -> "1 and a quarter"
+        const fracText = fracMap[frac] || String(frac);
+        return `${integer} and ${fracText}`;
+      }
+
+      // Update conversions
+      function updateAll(){
+        const v = Number(sel.value);
+        const marathiWord = marathiMap[sel.value] || '';
+        document.getElementById('marathiText').textContent = marathiWord;
+        document.getElementById('fractionWord').textContent = `${sel.value} — ${fracWord(sel.value)}`;
+
+        // Liter -> ml
+        const ml = Math.round(v*1000);
+        document.getElementById('litVal').textContent = ml + ' ml';
+        document.getElementById('litVal_m').textContent = ml + ' ml';
+
+        // Meter -> cm
+        const cm = Math.round(v*100);
+        document.getElementById('metVal').textContent = cm + ' cm';
+        document.getElementById('metVal_m').textContent = cm + ' cm';
+
+        // Kilogram -> grams
+        const g = Math.round(v*1000);
+        document.getElementById('kgVal').textContent = g + ' g';
+        document.getElementById('kgVal_m').textContent = g + ' g';
+
+        // Dozen -> pieces (12)
+        const doz = (v*12);
+        document.getElementById('dozVal').textContent = Number.isInteger(doz)? doz : doz.toFixed(2);
+        document.getElementById('dozVal_m').textContent = Number.isInteger(doz)? doz : doz.toFixed(2);
+
+        // Hour -> minutes (show minutes)
+        const minutes = Math.round(v*60);
+        const hrText = minutes + ' minute' + (minutes===1? '':'s');
+        document.getElementById('hrVal').textContent = hrText;
+        document.getElementById('hrVal_m').textContent = hrText;
+
+        // Percentage
+        const pct = (v*100).toFixed(0) + '%';
+        document.getElementById('pctVal').textContent = pct;
+        document.getElementById('pctVal_m').textContent = pct;
+
+        // Thousand
+        const thou = Math.round(v*1000);
+        document.getElementById('thouVal').textContent = thou;
+        document.getElementById('thouVal_m').textContent = thou;
+      }
+
+      sel.addEventListener('change', updateAll);
+      // initial update
+      updateAll();
+    </script>
+  
+      <!-- Watermark -->
+    <div class="watermark">T. S. Jagadale</div>
+
+  </body>
+</html>
