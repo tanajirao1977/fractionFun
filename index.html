@@ -14,6 +14,15 @@
       label{display:block;font-weight:600;margin-bottom:6px}
       select,input[type=number]{font-size:1.1rem;padding:8px;border:1px solid #ccc;border-radius:4px}
       .fraction-text{font-size:1.2rem}
+      /* mixed-number and stacked fraction rendering */
+      /* mixed-number: big integer with small stacked fraction as superscript */
+      .mixed{display:inline-block;position:relative;padding-right:8px}
+      .fraction-decimal{font-size:1.0rem;color:#0a84ff;font-weight:700;line-height:1}
+      .fraction-stack{position:absolute;right:0;top:0;transform:translate(28%, -12%);display:inline-block;text-align:center}
+      /* when there is no integer part, make the stack flow inline (centered) */
+      .mixed:not(.has-int) .fraction-stack{position:static;transform:none;display:inline-block;margin-left:6px}
+      .fraction-stack .num,.fraction-stack .den{display:block;font-size:0.85rem;color:#0a84ff;line-height:1}
+      .fraction-stack .bar{display:block;border-top:2px solid #0a84ff;margin:2px 0}
       h1{text-align:center}
 
       /* Desktop table (headers horizontal, values row below) */
@@ -64,16 +73,27 @@
           <select id="decimal" aria-label="decimal selector"></select>
         </div>
 
-        <div class="box blue">
+        <div class="box">
+          <div id="numDen" class="fraction-text">
+            <span class="mixed" id="mixedWrap">
+              <span id="fractionDecimal" class="fraction-decimal">&nbsp;</span>
+              <span id="fractionRender" class="fraction-stack">&nbsp;</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+        <div class="box">
           <label>अपूर्णांक अक्षरी</label>
           <div id="marathiText" class="fraction-text">&nbsp;</div>
         </div>
 
-        <div class="box blue">
+        <div class="box">
           <label>Fraction in word</label>
           <div id="fractionWord" class="fraction-text">&nbsp;</div>
         </div>
-      </div>
+
+
 
       <!-- Desktop table -->
       <table class="conv-table" id="convTable" aria-label="Conversions table">
@@ -103,13 +123,13 @@
 
       <!-- Mobile stacked view -->
       <div class="stacked" id="stackedView" aria-hidden="true">
-        <div class="pair"><div class="k">LITER</div><div class="v" id="litVal_m">&nbsp;</div></div>
-        <div class="pair"><div class="k">METER</div><div class="v" id="metVal_m">&nbsp;</div></div>
-        <div class="pair"><div class="k">KILOGRAM</div><div class="v" id="kgVal_m">&nbsp;</div></div>
-        <div class="pair"><div class="k">DOZAN</div><div class="v" id="dozVal_m">&nbsp;</div></div>
-        <div class="pair"><div class="k">HOUR</div><div class="v" id="hrVal_m">&nbsp;</div></div>
-        <div class="pair"><div class="k">PERCENTAGE</div><div class="v" id="pctVal_m">&nbsp;</div></div>
-        <div class="pair"><div class="k">THOUSAND</div><div class="v" id="thouVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">लीटर</div><div class="v" id="litVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">मीटर</div><div class="v" id="metVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">किलोग्रॅम</div><div class="v" id="kgVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">डझन</div><div class="v" id="dozVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">तास</div><div class="v" id="hrVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">टक्के</div><div class="v" id="pctVal_m">&nbsp;</div></div>
+        <div class="pair"><div class="k">हजार</div><div class="v" id="thouVal_m">&nbsp;</div></div>
       </div>
 
     </div>
@@ -130,23 +150,23 @@
       const marathiMap = {
         '0.25': 'पाव',
         '0.50': 'अर्धा',
-        '0.75': 'पाउण',
+        '0.75': 'पाऊण',
         '1.00': 'एक',
         '1.25': 'सव्वा',
-        '1.50': 'डोळ',
-        '1.75': 'पाउणो दोन',
+        '1.50': 'दिड',
+        '1.75': 'पावणे दोन',
         '2.00': 'दोन',
         '2.25': 'सव्वा दोन',
         '2.50': 'अडीच',
-        '2.75': 'पाउणो तीन',
+        '2.75': 'पावणे तीन',
         '3.00': 'तीन',
         '3.25': 'सव्वा तीन',
         '3.50': 'साडे तीन',
-        '3.75': 'पाउणो चार',
+        '3.75': 'पावणे चार',
         '4.00': 'चार',
         '4.25': 'सव्वा चार',
         '4.50': 'साडे चार',
-        '4.75': 'पाउणो पाच',
+        '4.75': 'पावणे पाच',
         '5.00': 'पाच'
       };
 
@@ -166,6 +186,25 @@
         return `${integer} and ${fracText}`;
       }
 
+      // Helper: greatest common divisor
+      function gcd(a,b){
+        a = Math.abs(a); b = Math.abs(b);
+        while(b){
+          const t = a % b; a = b; b = t;
+        }
+        return a;
+      }
+
+      // Convert decimal (string/number) to reduced fraction
+      function decimalToFraction(value){
+        const n = Number(value);
+        // use two decimal places as input values are like 0.25, 1.25 etc.
+        const numerator = Math.round(n * 100);
+        const denominator = 100;
+        const g = gcd(numerator, denominator);
+        return {num: numerator / g, den: denominator / g};
+      }
+
       // Update conversions
       function updateAll(){
         const v = Number(sel.value);
@@ -175,27 +214,28 @@
 
         // Liter -> ml
         const ml = Math.round(v*1000);
-        document.getElementById('litVal').textContent = ml + ' ml';
-        document.getElementById('litVal_m').textContent = ml + ' ml';
+        document.getElementById('litVal').textContent = ml + ' मिली लीटर';
+        document.getElementById('litVal_m').textContent = ml + ' मिली लीटर';
 
         // Meter -> cm
         const cm = Math.round(v*100);
-        document.getElementById('metVal').textContent = cm + ' cm';
-        document.getElementById('metVal_m').textContent = cm + ' cm';
+        document.getElementById('metVal').textContent = cm + ' सेंटी मीटर';
+        document.getElementById('metVal_m').textContent = cm + ' सेंटी मीटर';
 
         // Kilogram -> grams
         const g = Math.round(v*1000);
-        document.getElementById('kgVal').textContent = g + ' g';
-        document.getElementById('kgVal_m').textContent = g + ' g';
+        document.getElementById('kgVal').textContent = g + ' ग्रॅम';
+        document.getElementById('kgVal_m').textContent = g + ' ग्रॅम';
 
         // Dozen -> pieces (12)
-        const doz = (v*12);
-        document.getElementById('dozVal').textContent = Number.isInteger(doz)? doz : doz.toFixed(2);
-        document.getElementById('dozVal_m').textContent = Number.isInteger(doz)? doz : doz.toFixed(2);
+        const doz = (v * 12);
+        const dozText = Number.isInteger(doz) ? (doz + ' नग') : (doz.toFixed(2) + ' pices');
+        document.getElementById('dozVal').textContent = dozText;
+        document.getElementById('dozVal_m').textContent = dozText;
 
         // Hour -> minutes (show minutes)
         const minutes = Math.round(v*60);
-        const hrText = minutes + ' minute' + (minutes===1? '':'s');
+        const hrText = minutes + ' मिनिटे' + (minutes===1? '':'');
         document.getElementById('hrVal').textContent = hrText;
         document.getElementById('hrVal_m').textContent = hrText;
 
@@ -208,6 +248,35 @@
         const thou = Math.round(v*1000);
         document.getElementById('thouVal').textContent = thou;
         document.getElementById('thouVal_m').textContent = thou;
+
+        // numerator/denominator rendering (show mixed number for values > 1)
+        const frac = decimalToFraction(sel.value);
+        const frEl = document.getElementById('fractionRender');
+        const decEl = document.getElementById('fractionDecimal');
+        const mixedWrap = document.getElementById('mixedWrap');
+        if(frEl){
+          const whole = Math.floor(frac.num / frac.den);
+          const rem = frac.num - whole * frac.den;
+          // show big integer (whole) on left for mixed numbers
+          if(decEl){
+            if(whole > 0) decEl.textContent = String(whole);
+            else decEl.textContent = '';
+          }
+
+          if(whole > 0 && rem > 0){
+            frEl.innerHTML = `<span class="num">${rem}</span><span class="bar"></span><span class="den">${frac.den}</span>`;
+            if(mixedWrap) mixedWrap.classList.add('has-int');
+          } else if(whole > 0 && rem === 0){
+            // whole number only: hide fraction
+            frEl.innerHTML = '';
+            if(mixedWrap) mixedWrap.classList.remove('has-int');
+          } else {
+            // proper fraction < 1: show numerator/denominator (no big integer)
+            if(decEl) decEl.textContent = '';
+            frEl.innerHTML = `<span class="num">${frac.num}</span><span class="bar"></span><span class="den">${frac.den}</span>`;
+            if(mixedWrap) mixedWrap.classList.remove('has-int');
+          }
+        }
       }
 
       sel.addEventListener('change', updateAll);
